@@ -1,0 +1,120 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.optimize import minimize
+
+items = [{'id': 1, 'a': 1.5097045, 'b': [0.3285361,-0.005906699,0.2939168, 0.6907958,1.285917]},
+         {'id': 2, 'a': 1.0320759, 'b': [0.8011340, 1.112417248, 1.2962282, 1.6516471, 2.453920]},
+        {'id': 3, 'a': 1.4764997, 'b': [0.4774598, 0.702077625, 0.8356454, 1.0912027, 1.647400]},
+        {'id': 4, 'a': 1.8366236, 'b': [1.7410411, 1.831936440 ,2.0211540, 2.2637153, 2.728590]},
+        {'id': 5, 'a': 2.0366980, 'b': [1.7604304,1.797083593, 2.1709457,2.9410258,3.802192]},
+        {'id': 6, 'a': 1.6193756, 'b': [1.7666369, 1.930214250,2.2633967,2.6677537,3.187222]},
+        {'id': 7, 'a': 1.8911487, 'b': [-0.4461850, -0.173258803, 0.1063228,0.6160109,1.325337]},
+        {'id': 8, 'a': 1.2516636, 'b': [2.6943297,2.769718505,2.8932336,3.0816022,3.822982]},
+        {'id': 9, 'a': 2.8040102, 'b': [2.1472095, 2.247616150, 2.5514400, 2.8258061, 3.314969]},
+        {'id': 10, 'a': 1.3596846, 'b': [2.2937446, 2.375191668, 2.5603201, 3.1086584, 3.599424]},
+        {'id': 11, 'a': 2.0166317, 'b': [2.4471829,2.555025728,2.9669683,3.2725808,3.852966]},
+        {'id': 12, 'a': 1.1768714, 'b': [2.8843484, 2.968298042,3.1069130,3.4564240,3.999298]},
+        {'id': 13, 'a': 1.5243322, 'b': [-0.3200680,0.062348016,0.3939837,0.9026866,1.672415]},
+        {'id': 14, 'a': 1.4222138, 'b': [1.4393246,1.617008242,1.7528912,2.0561043,2.937124]},
+        {'id': 15, 'a': 1.5806995, 'b': [1.7345453,1.857007523,2.0401394,2.5163524,2.934104]},
+        {'id': 16, 'a': 1.2947459, 'b': [1.4683481,1.605667735,1.7709595,2.3325678,3.412199]},
+        {'id': 17, 'a': 2.2497791, 'b': [1.9739373, 2.193049914,2.3168613,2.6030299,2.965264]},
+        {'id': 18, 'a': 2.0932872, 'b': [2.1152534,2.430683446,2.6108303,2.8621323,3.241668]},
+        {'id': 19, 'a': 0.7729189, 'b': [1.8998935,2.470574221,3.3116072,4.7130681,6.539770]},
+        {'id': 20, 'a': 1.0229372, 'b': [1.2981755,1.622649184,2.3763007,3.7609894,4.956147]},
+        {'id': 21, 'a': 1.0286840, 'b': [0.2780794,0.628728710,1.2722875,2.2638927,3.330522]},
+        {'id': 22, 'a': 1.2193015, 'b': [1.9322649,2.211082739,2.8399985,4.1210984,4.818710]},
+        {'id': 23, 'a': 1.4501642, 'b': [1.7867459,2.011595992,2.3220479,3.0459060,3.836638]},
+        {'id': 24, 'a': 1.6642272, 'b': [2.0070053,2.204916001,2.4953573,3.2356780,3.918205]},
+        {'id': 25, 'a': 1.7603278, 'b': [1.9154725,2.095092560,2.4739141,3.3495848,4.124891]},
+        {'id': 26, 'a': 2.0400808, 'b': [1.7982368,2.102744462,2.3887983,3.1923724,4.547116]},
+        {'id': 27, 'a': 1.5583037, 'b': [2.1171632,2.391594467,2.8043904,3.6135243,4.438341]},
+        {'id': 28, 'a': 3.0882680, 'b': [2.0510367,2.145899265,2.3289653,2.7553937,3.214954]},
+        {'id': 29, 'a': 2.1055838, 'b': [1.9402122,2.092035317,2.5876428,3.6347072,4.509457]},
+        {'id': 30, 'a': 4.5576695, 'b': [1.9539791,2.059858979,2.3288670,2.8506053,3.805913]}]
+
+def grm_probability(theta, a, b):
+    """Calculate the probabilities of responding in each category for GRM."""
+    P = [1 / (1 + np.exp(-a * (theta - bk))) for bk in b]
+    P = [0] + P + [1]  # Boundaries
+    return [P[i] - P[i + 1] for i in range(len(P) - 1)]
+
+def likelihood(theta, responses, items):
+    """Calculate the likelihood of a given ability (theta) for all responses."""
+    log_likelihood = 0
+    for response, item in zip(responses, items):
+        probs = grm_probability(theta, item['a'], item['b'])
+        log_likelihood += np.log(probs[response])
+    return -log_likelihood
+
+def select_next_item(theta, administered_items):
+    """Select the next item based on current ability estimate (theta)."""
+    remaining_items = [item for item in items if item not in administered_items]
+    information = [item_information(theta, item) for item in remaining_items]
+    return remaining_items[np.argmax(information)]
+
+def item_information(theta, item):
+    """Calculate item information for GRM."""
+    P = grm_probability(theta, item['a'], item['b'])
+    info = 0
+    for p in P:
+        info += (item['a']**2) * (p * (1 - p))
+    return info
+
+# Initialize
+theta = 0
+responses = []
+administered_items = []
+true_theta = 2.0  # Example true ability level for simulation
+l2_losses = []
+total_score_losses = []
+true_total_score = sum([item['a'] * true_theta for item in items])
+
+# Simulate test-taking process
+for _ in range(10):
+    item = select_next_item(theta, administered_items)
+    administered_items.append(item)
+    
+    # Calculate probabilities and ensure they are valid
+    probs = grm_probability(true_theta, item['a'], item['b'])
+    probs = np.clip(probs, 0, 1)  # Ensure probabilities are within [0, 1]
+    probs /= np.sum(probs)  # Normalize to sum to 1
+    
+    # Simulate response (for demo purposes, assume true_theta)
+    response = np.random.choice(len(probs), p=probs)
+    responses.append(response)
+    
+    # Update theta (using MLE)
+    result = minimize(lambda t: likelihood(t, responses, administered_items), theta)
+    theta = result.x[0]
+    
+    # Calculate L2 loss
+    l2_loss = (theta - true_theta)**2
+    l2_losses.append(l2_loss)
+    
+    # Calculate total score loss
+    estimated_total_score = sum([item['a'] * theta for item in administered_items])
+    total_score_loss = (estimated_total_score - true_total_score)**2
+    total_score_losses.append(total_score_loss)
+
+# Plotting tradeoff
+plt.figure(figsize=(12, 5))
+
+# Plot L2 Loss
+# plt.subplot(1, 2, 1)
+# plt.plot(range(1, len(l2_losses) + 1), l2_losses, marker='o')
+# plt.xlabel('Number of Items Administered')
+# plt.ylabel('L2 Loss (MSE)')
+# plt.title('Tradeoff between L2 Loss and Number of Questions')
+# plt.grid(True)
+
+# Plot Total Score Loss
+plt.subplot(1, 2, 2)
+plt.plot(range(1, len(total_score_losses) + 1), total_score_losses, marker='o')
+plt.xlabel('Number of Items Administered')
+plt.ylabel('Total Score Loss (MSE)')
+plt.title('Tradeoff between Total Score Loss and Number of Questions')
+plt.grid(True)
+
+plt.tight_layout()
+plt.show()
